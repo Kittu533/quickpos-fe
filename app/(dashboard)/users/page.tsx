@@ -1,0 +1,286 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { usersAPI } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Plus,
+  Search,
+  Edit,
+  UserCog,
+  Power,
+  Loader2,
+} from "lucide-react";
+
+interface User {
+  id: number;
+  username: string;
+  fullname: string;
+  email: string;
+  role: string;
+  is_active: boolean;
+}
+
+export default function UsersPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const [formData, setFormData] = useState({
+    username: "",
+    fullname: "",
+    email: "",
+    password: "",
+    role: "cashier",
+  });
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await usersAPI.getAll({ limit: 100 });
+      setUsers(res.data.data);
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      if (editingUser) {
+        const { password, ...data } = formData;
+        await usersAPI.update(editingUser.id, data);
+      } else {
+        await usersAPI.create(formData);
+      }
+
+      setShowModal(false);
+      resetForm();
+      fetchUsers();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      alert(err.response?.data?.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (user: User) => {
+    setEditingUser(user);
+    setFormData({
+      username: user.username,
+      fullname: user.fullname,
+      email: user.email,
+      password: "",
+      role: user.role,
+    });
+    setShowModal(true);
+  };
+
+  const handleToggleStatus = async (user: User) => {
+    try {
+      await usersAPI.toggleStatus(user.id);
+      fetchUsers();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      alert(err.response?.data?.message || "Failed to toggle status");
+    }
+  };
+
+  const resetForm = () => {
+    setEditingUser(null);
+    setFormData({ username: "", fullname: "", email: "", password: "", role: "cashier" });
+  };
+
+  const filteredUsers = users.filter(
+    (u) =>
+      u.fullname.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.username.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getRoleBadge = (role: string) => {
+    const colors: Record<string, "default" | "secondary" | "outline"> = {
+      admin: "default",
+      manager: "secondary",
+      cashier: "outline",
+    };
+    return <Badge variant={colors[role] || "secondary"}>{role}</Badge>;
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Users</h2>
+          <p className="text-muted-foreground">Manage system users</p>
+        </div>
+        <Button className="gradient-primary" onClick={() => { resetForm(); setShowModal(true); }}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add User
+        </Button>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search users..."
+          className="pl-10"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b border-border bg-secondary/50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium">User</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Email</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium">Role</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium">Status</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center">
+                      <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <tr key={user.id} className="border-b border-border hover:bg-secondary/30">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                            <UserCog className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{user.fullname}</p>
+                            <p className="text-xs text-muted-foreground">@{user.username}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">{user.email}</td>
+                      <td className="px-4 py-3 text-center">{getRoleBadge(user.role)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <Badge variant={user.is_active ? "success" : "destructive"}>
+                          {user.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(user)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleToggleStatus(user)}
+                        >
+                          <Power className={`h-4 w-4 ${user.is_active ? "text-red-500" : "text-green-500"}`} />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingUser ? "Edit User" : "Add User"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label>Username *</Label>
+                <Input
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Full Name *</Label>
+                <Input
+                  value={formData.fullname}
+                  onChange={(e) => setFormData({ ...formData, fullname: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+              {!editingUser && (
+                <div className="sm:col-span-2">
+                  <Label>Password *</Label>
+                  <Input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required={!editingUser}
+                  />
+                </div>
+              )}
+              <div className="sm:col-span-2">
+                <Label>Role</Label>
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                >
+                  <option value="cashier">Cashier</option>
+                  <option value="manager">Manager</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowModal(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="gradient-primary" disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingUser ? "Update" : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
