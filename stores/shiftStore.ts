@@ -24,8 +24,8 @@ interface ShiftState {
   error: string | null;
 
   fetchCurrentShift: () => Promise<void>;
-  openShift: (openingBalance: number) => Promise<boolean>;
-  closeShift: (closingBalance: number) => Promise<{ summary: Record<string, unknown> } | null>;
+  openShift: (openingCash: number) => Promise<boolean>;
+  closeShift: (closingCash: number, notes?: string) => Promise<{ summary: Record<string, unknown> } | null>;
   clearError: () => void;
 }
 
@@ -44,10 +44,10 @@ export const useShiftStore = create<ShiftState>((set, get) => ({
     }
   },
 
-  openShift: async (openingBalance: number) => {
+  openShift: async (openingCash: number) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await shiftsAPI.open(openingBalance);
+      const response = await shiftsAPI.open(openingCash);
       set({ currentShift: response.data.data, isLoading: false });
       return true;
     } catch (error: unknown) {
@@ -60,13 +60,13 @@ export const useShiftStore = create<ShiftState>((set, get) => ({
     }
   },
 
-  closeShift: async (closingBalance: number) => {
+  closeShift: async (closingCash: number, notes?: string) => {
     const shift = get().currentShift;
     if (!shift) return null;
 
     set({ isLoading: true, error: null });
     try {
-      const response = await shiftsAPI.close(shift.id, closingBalance);
+      const response = await shiftsAPI.close(closingCash, notes);
       set({ currentShift: null, isLoading: false });
       return { summary: response.data.summary };
     } catch (error: unknown) {

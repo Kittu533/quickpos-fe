@@ -19,6 +19,7 @@ api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("token");
+      console.log('[API] Request to:', config.url, '- Token:', token ? `${token.length} chars` : 'null');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -121,10 +122,11 @@ export const customersAPI = {
 export const shiftsAPI = {
   getCurrent: () => api.get("/shifts/current"),
   getAll: (params?: Record<string, unknown>) => api.get("/shifts", { params }),
+  getMyShifts: (params?: Record<string, unknown>) => api.get("/shifts/my", { params }),
   getById: (id: number) => api.get(`/shifts/${id}`),
-  open: (opening_balance: number) => api.post("/shifts/open", { opening_balance }),
-  close: (id: number, closing_balance: number) =>
-    api.put(`/shifts/${id}/close`, { closing_balance }),
+  open: (opening_cash: number) => api.post("/shifts/open", { opening_cash }),
+  close: (closing_cash: number, notes?: string) =>
+    api.post("/shifts/close", { closing_cash, notes }),
 };
 
 // Transactions API
@@ -139,7 +141,7 @@ export const transactionsAPI = {
     notes?: string;
   }) => api.post("/transactions", data),
   void: (id: number, reason: string) =>
-    api.put(`/transactions/${id}/void`, { reason }),
+    api.post(`/transactions/${id}/void`, { reason }),
   getDailyReport: (date?: string) =>
     api.get("/transactions/report/daily", { params: { date } }),
   getMonthlyReport: (year?: number, month?: number) =>

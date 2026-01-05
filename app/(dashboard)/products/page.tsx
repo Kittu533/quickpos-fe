@@ -23,6 +23,8 @@ import {
   Package,
   AlertTriangle,
   Loader2,
+  ImageIcon,
+  Link as LinkIcon,
 } from "lucide-react";
 
 interface Product {
@@ -34,6 +36,7 @@ interface Product {
   stock: number;
   min_stock: number;
   is_active: boolean;
+  image_url?: string;
   category?: { id: number; name: string };
 }
 
@@ -59,6 +62,7 @@ export default function ProductsPage() {
     stock: "",
     min_stock: "5",
     category_id: "",
+    image_url: "",
   });
 
   useEffect(() => {
@@ -68,7 +72,7 @@ export default function ProductsPage() {
 
   const fetchProducts = async () => {
     try {
-      const res = await productsAPI.getAll({ limit: 100, is_active: "all" });
+      const res = await productsAPI.getAll({ limit: 100, is_active: true });
       setProducts(res.data.data);
     } catch (error) {
       console.error("Failed to fetch products:", error);
@@ -99,6 +103,7 @@ export default function ProductsPage() {
         stock: parseInt(formData.stock) || 0,
         min_stock: parseInt(formData.min_stock) || 5,
         category_id: formData.category_id ? parseInt(formData.category_id) : undefined,
+        image_url: formData.image_url || undefined,
       };
 
       if (editingProduct) {
@@ -128,6 +133,7 @@ export default function ProductsPage() {
       stock: String(product.stock),
       min_stock: String(product.min_stock),
       category_id: product.category?.id ? String(product.category.id) : "",
+      image_url: product.image_url || "",
     });
     setShowModal(true);
   };
@@ -155,6 +161,7 @@ export default function ProductsPage() {
       stock: "",
       min_stock: "5",
       category_id: "",
+      image_url: "",
     });
   };
 
@@ -227,8 +234,20 @@ export default function ProductsPage() {
                     <tr key={product.id} className="border-b border-border hover:bg-secondary/30">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded bg-secondary">
-                            <Package className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex h-12 w-12 items-center justify-center rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
+                            {product.image_url ? (
+                              <img
+                                src={product.image_url}
+                                alt={product.name}
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="flex items-center justify-center h-full w-full"><svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 16-4-4-4 4"/><path d="m17 12 4 4-4 4"/><path d="M3 21h18"/><path d="M3 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg></div>';
+                                }}
+                              />
+                            ) : (
+                              <Package className="h-5 w-5 text-gray-400" />
+                            )}
                           </div>
                           <div>
                             <p className="font-medium">{product.name}</p>
@@ -347,6 +366,37 @@ export default function ProductsPage() {
                   value={formData.min_stock}
                   onChange={(e) => setFormData({ ...formData, min_stock: e.target.value })}
                 />
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4" />
+                  Image URL
+                </Label>
+                <Input
+                  type="url"
+                  placeholder="https://example.com/product-image.jpg"
+                  value={formData.image_url}
+                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                  className="mt-1"
+                />
+                {formData.image_url && (
+                  <div className="mt-3 flex items-start gap-3">
+                    <div className="h-20 w-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                      <img
+                        src={formData.image_url}
+                        alt="Preview"
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '';
+                          (e.target as HTMLImageElement).alt = 'Invalid URL';
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Preview gambar produk. Pastikan URL dapat diakses publik.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>

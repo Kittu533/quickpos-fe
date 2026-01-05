@@ -5,18 +5,27 @@ import { shiftsAPI } from "@/lib/api";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2, User } from "lucide-react";
 
 interface Shift {
   id: number;
-  shift_start: string;
-  shift_end?: string;
-  opening_balance: number;
-  closing_balance?: number;
-  total_sales: number;
-  total_transactions: number;
+  user_id: number;
+  start_time: string;
+  end_time?: string | null;
+  opening_cash: string;
+  closing_cash?: string | null;
+  total_sales: string;
+  transaction_count: number;
   status: string;
+  notes?: string | null;
   user?: { fullname: string };
+}
+
+// Helper function to safely parse monetary string to number
+function parseMoney(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const parsed = parseFloat(String(value));
+  return isNaN(parsed) ? 0 : parsed;
 }
 
 export default function ShiftsPage() {
@@ -78,28 +87,30 @@ export default function ShiftsPage() {
                     <tr key={shift.id} className="border-b border-border hover:bg-secondary/30">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                            <Clock className="h-5 w-5 text-primary" />
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                            <User className="h-5 w-5 text-blue-600" />
                           </div>
-                          <span className="font-medium">{shift.user?.fullname}</span>
+                          <span className="font-medium">
+                            {shift.user?.fullname || `User #${shift.user_id}`}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm">{formatDateTime(shift.shift_start)}</td>
+                      <td className="px-4 py-3 text-sm">{formatDateTime(shift.start_time)}</td>
                       <td className="px-4 py-3 text-sm">
-                        {shift.shift_end ? formatDateTime(shift.shift_end) : "-"}
+                        {shift.end_time ? formatDateTime(shift.end_time) : "-"}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {formatCurrency(parseFloat(String(shift.opening_balance)))}
+                        {formatCurrency(parseMoney(shift.opening_cash))}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {shift.closing_balance
-                          ? formatCurrency(parseFloat(String(shift.closing_balance)))
+                        {shift.closing_cash
+                          ? formatCurrency(parseMoney(shift.closing_cash))
                           : "-"}
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-green-500">
-                        {formatCurrency(parseFloat(String(shift.total_sales)))}
+                        {formatCurrency(parseMoney(shift.total_sales))}
                       </td>
-                      <td className="px-4 py-3 text-right">{shift.total_transactions}</td>
+                      <td className="px-4 py-3 text-right">{shift.transaction_count}</td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant={shift.status === "open" ? "success" : "secondary"}>
                           {shift.status}
