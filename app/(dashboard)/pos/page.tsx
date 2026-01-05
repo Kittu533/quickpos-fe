@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useShiftStore } from "@/stores/shiftStore";
 import { useCartStore, calculateTotals } from "@/stores/cartStore";
-import { productsAPI, customersAPI, transactionsAPI } from "@/lib/api";
+import { productsAPI, customersAPI, transactionsAPI, paymentsAPI } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,31 @@ import {
   ShoppingBag,
   Wallet,
   Coins,
+  QrCode,
 } from "lucide-react";
+
+// Midtrans types
+declare global {
+  interface Window {
+    snap: {
+      pay: (
+        token: string,
+        options: {
+          onSuccess?: (result: MidtransResult) => void;
+          onPending?: (result: MidtransResult) => void;
+          onError?: (result: MidtransResult) => void;
+          onClose?: () => void;
+        }
+      ) => void;
+    };
+  }
+}
+
+interface MidtransResult {
+  order_id: string;
+  transaction_status: string;
+  payment_type: string;
+}
 
 interface Product {
   id: number;
@@ -62,7 +86,39 @@ export default function POSPage() {
   const [amountPaid, setAmountPaid] = useState("");
   const [processing, setProcessing] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<unknown>(null);
+  const [midtransReady, setMidtransReady] = useState(false);
+  const [midtransLoading, setMidtransLoading] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [midtransOrderId, setMidtransOrderId] = useState<string | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Load Midtrans Snap script
+  useEffect(() => {
+    const loadMidtransScript = async () => {
+      try {
+        const res = await paymentsAPI.getClientKey();
+        const { client_key, is_production } = res.data.data;
+
+        if (window.snap) {
+          setMidtransReady(true);
+          return;
+        }
+
+        const script = document.createElement('script');
+        const baseUrl = is_production
+          ? 'https://app.midtrans.com'
+          : 'https://app.sandbox.midtrans.com';
+        script.src = `${baseUrl}/snap/snap.js`;
+        script.setAttribute('data-client-key', client_key);
+        script.async = true;
+        script.onload = () => setMidtransReady(true);
+        document.body.appendChild(script);
+      } catch (err) {
+        console.error('Failed to load Midtrans:', err);
+      }
+    };
+    loadMidtransScript();
+  }, []);
 
   const subtotal = getSubtotal();
   const isMember = !!customer;
@@ -165,6 +221,103 @@ export default function POSPage() {
       alert(err.response?.data?.message || "Transaction failed");
     } finally {
       setProcessing(false);
+    }
+  };
+
+  // Process Midtrans payment
+  const handleMidtransPayment = async () => {
+    if (!midtransReady) {
+      alert("Midtrans belum siap, mohon tunggu sebentar");
+      return;
+    }
+
+    if (!customerName.trim()) {
+      alert("Silakan masukkan nama customer");
+      return;
+    }
+
+    setMidtransLoading(true);
+    try {
+      // First create transaction with pending status
+      const txRes = await transactionsAPI.create({
+        items: items.map((item) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+        })),
+        customer_id: customer?.id,
+        payment_method: "midtrans",
+        amount_paid: totals.total,
+        notes: `Customer: ${customerName.trim()}`,
+      });
+
+      const transactionId = txRes.data.data.id;
+
+      // Create Midtrans payment and get snap token
+      const paymentRes = await paymentsAPI.createPayment(transactionId);
+      const { token, order_id } = paymentRes.data.data;
+
+      setMidtransOrderId(order_id);
+      setShowPaymentModal(false);
+
+      // Open Midtrans Snap popup
+      window.snap.pay(token, {
+        onSuccess: (result: MidtransResult) => {
+          console.log("Payment success:", result);
+          setLastTransaction(txRes.data.data);
+          setShowReceiptModal(true);
+          clearCart();
+          setPaymentMethod("");
+          setCustomerName("");
+          setMidtransOrderId(null);
+          setMidtransLoading(false);
+        },
+        onPending: (result: MidtransResult) => {
+          console.log("Payment pending:", result);
+          // Don't reset loading, let user use simulate button if needed
+          // setMidtransLoading(false); 
+        },
+        onError: (result: MidtransResult) => {
+          console.log("Payment error:", result);
+          alert("Pembayaran gagal. Silakan coba lagi.");
+          setMidtransLoading(false);
+        },
+        onClose: () => {
+          console.log("Payment popup closed");
+          setMidtransLoading(false);
+        },
+      });
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      alert(err.response?.data?.message || "Gagal memproses pembayaran Midtrans");
+      setMidtransLoading(false);
+    }
+  };
+
+  // Simulate payment success (for testing)
+  const handleSimulateSuccess = async () => {
+    if (!midtransOrderId) return;
+
+    try {
+      await paymentsAPI.simulateNotification({
+        order_id: midtransOrderId,
+        transaction_status: 'settlement',
+        payment_type: 'qris',
+        fraud_status: 'accept',
+        transaction_id: `SIM-${Date.now()}`,
+        gross_amount: totals.total.toString(),
+      });
+
+      alert("Simulasi pembayaran sukses!");
+      // Manually trigger success flow
+      setShowReceiptModal(true);
+      clearCart();
+      setPaymentMethod("");
+      setCustomerName("");
+      setMidtransOrderId(null);
+      setMidtransLoading(false);
+    } catch (error) {
+      console.error("Simulation failed:", error);
+      alert("Gagal simulasi pembayaran");
     }
   };
 
@@ -430,6 +583,17 @@ export default function POSPage() {
             <Wallet className="mr-2 h-5 w-5" />
             Pay {formatCurrency(totals.total)}
           </Button>
+
+          {/* Dev Tool: Simulate Success */}
+          {midtransOrderId && !showPaymentModal && (
+            <Button
+              variant="outline"
+              className="w-full mt-2 border-dashed border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+              onClick={handleSimulateSuccess}
+            >
+              🛠️ Simulate Success (Dev Only)
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -481,122 +645,75 @@ export default function POSPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-emerald-500 flex items-center justify-center">
-                <Wallet className="h-5 w-5 text-white" />
+              <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 flex items-center justify-center">
+                <QrCode className="h-5 w-5 text-white" />
               </div>
               <div>
-                <span className="text-lg">Complete Payment</span>
-                <p className="text-sm font-normal text-gray-500">Choose payment method</p>
+                <span className="text-lg">Pembayaran Digital</span>
+                <p className="text-sm font-normal text-gray-500">Via Midtrans Payment Gateway</p>
               </div>
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-4">
             {/* Total Amount */}
-            <div className="text-center bg-gray-50 rounded-xl p-4">
-              <p className="text-sm text-gray-500 mb-1">Total Amount</p>
+            <div className="text-center bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-5 border border-blue-100">
+              <p className="text-sm text-gray-500 mb-1">Total Pembayaran</p>
               <p className="text-4xl font-bold text-blue-600">
                 {formatCurrency(totals.total)}
               </p>
+              <p className="text-xs text-gray-400 mt-2">
+                {items.length} item{items.length > 1 ? 's' : ''} • {isMember ? 'Member' : 'Non-Member'}
+              </p>
             </div>
 
-            {/* Payment Methods */}
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { value: "cash", label: "Cash", icon: Banknote, color: "bg-emerald-500" },
-                { value: "debit", label: "Debit", icon: CreditCard, color: "bg-blue-500" },
-                { value: "credit", label: "Credit", icon: CreditCard, color: "bg-purple-500" },
-                { value: "ewallet", label: "E-Wallet", icon: Smartphone, color: "bg-orange-500" },
-              ].map((method) => (
-                <button
-                  key={method.value}
-                  onClick={() => {
-                    setPaymentMethod(method.value);
-                    if (method.value !== "cash") {
-                      setAmountPaid(String(totals.total));
-                    }
-                  }}
-                  className={`relative h-20 rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-2 ${paymentMethod === method.value
-                    ? "border-blue-500 bg-blue-50 shadow-lg shadow-blue-500/20"
-                    : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-md"
-                    }`}
-                >
-                  <div className={`h-8 w-8 rounded-full ${method.color} flex items-center justify-center`}>
-                    <method.icon className="h-4 w-4 text-white" />
-                  </div>
-                  <span className={`text-sm font-medium ${paymentMethod === method.value ? "text-blue-700" : "text-gray-600"}`}>
-                    {method.label}
-                  </span>
-                  {paymentMethod === method.value && (
-                    <div className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
-                      <Check className="h-3 w-3 text-white" />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Amount Input */}
-            {paymentMethod === "cash" && (
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Amount Received</label>
-                  <div className="relative mt-1">
-                    <Banknote className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <Input
-                      type="number"
-                      placeholder="0"
-                      value={amountPaid}
-                      onChange={(e) => setAmountPaid(e.target.value)}
-                      className="pl-10 text-lg font-semibold"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {quickAmounts.map((amount) => (
-                    <Button
-                      key={amount}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setAmountPaid(String(amount))}
-                      className={`hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 ${amountPaid === String(amount) ? "bg-blue-50 border-blue-200 text-blue-600" : ""
-                        }`}
-                    >
-                      {formatCurrency(amount)}
-                    </Button>
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAmountPaid(String(totals.total))}
-                    className={`hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 ${amountPaid === String(totals.total) ? "bg-emerald-50 border-emerald-200 text-emerald-600" : ""
-                      }`}
-                  >
-                    <Check className="h-3 w-3 mr-1" />
-                    Exact
-                  </Button>
-                </div>
-                {parseFloat(amountPaid) >= totals.total && (
-                  <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">
-                    <p className="text-sm text-emerald-600 mb-1">Change Due</p>
-                    <p className="text-2xl font-bold text-emerald-600">
-                      {formatCurrency(parseFloat(amountPaid) - totals.total)}
-                    </p>
-                  </div>
-                )}
+            {/* Customer Name Input */}
+            <div>
+              <label className="text-sm font-medium text-gray-700">Nama Customer <span className="text-red-500">*</span></label>
+              <div className="relative mt-1">
+                <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Masukkan nama customer..."
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="pl-10 text-base"
+                />
               </div>
-            )}
+            </div>
+
+            {/* Payment Methods Info */}
+            <div className="rounded-xl bg-gray-50 p-4">
+              <p className="text-sm font-medium text-gray-700 mb-3">Metode Pembayaran Tersedia:</p>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { icon: QrCode, label: "QRIS" },
+                  { icon: Smartphone, label: "GoPay" },
+                  { icon: CreditCard, label: "Card" },
+                  { icon: Wallet, label: "VA" },
+                ].map((method, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1 p-2 bg-white rounded-lg border border-gray-100">
+                    <method.icon className="h-5 w-5 text-blue-500" />
+                    <span className="text-xs text-gray-500">{method.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowPaymentModal(false)} className="flex-1">
-              Cancel
+              Batal
             </Button>
             <Button
-              className="flex-1 bg-emerald-500 hover:bg-emerald-600"
-              onClick={handlePayment}
-              disabled={!paymentMethod || parseFloat(amountPaid || "0") < totals.total || processing}
+              onClick={handleMidtransPayment}
+              disabled={midtransLoading || !midtransReady || items.length === 0 || !customerName.trim()}
+              className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600"
             >
-              {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-              Complete
+              {midtransLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <QrCode className="mr-2 h-4 w-4" />
+              )}
+              Bayar Sekarang
             </Button>
           </DialogFooter>
         </DialogContent>

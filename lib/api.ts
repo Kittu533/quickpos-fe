@@ -147,3 +147,15 @@ export const transactionsAPI = {
   getMonthlyReport: (year?: number, month?: number) =>
     api.get("/transactions/report/monthly", { params: { year, month } }),
 };
+
+// Payments API (Midtrans)
+export const paymentsAPI = {
+  getClientKey: () => api.get("/payments/client-key"),
+  createPayment: (transactionId: number) =>
+    api.post("/payments/create", { transaction_id: transactionId }),
+  checkStatus: (orderId: string) => api.get(`/payments/status/${orderId}`),
+  cancelPayment: (orderId: string) => api.post(`/payments/cancel/${orderId}`),
+  // For testing purposes
+  simulateNotification: (data: any) => api.post("/payments/notification", data),
+};
+
