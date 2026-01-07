@@ -31,21 +31,15 @@ export const useAuthStore = create<AuthState>()(
       error: null,
 
       login: async (username: string, password: string) => {
-        console.log('[DEBUG] authStore.login called');
         set({ isLoading: true, error: null });
         try {
           const response = await authAPI.login({ username, password });
-          console.log('[DEBUG] Login API response:', response.data);
           const { user, token } = response.data.data;
 
-          console.log('[DEBUG] Saving token to localStorage');
           localStorage.setItem("token", token);
-          console.log('[DEBUG] Setting user and token in store');
           set({ user, token, isLoading: false });
-          console.log('[DEBUG] Login successful, user:', user.username);
           return true;
         } catch (error: unknown) {
-          console.log('[DEBUG] Login error:', error);
           const err = error as { response?: { data?: { message?: string } } };
           set({
             error: err.response?.data?.message || "Login failed",
@@ -61,41 +55,16 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkAuth: async () => {
-        console.log('[DEBUG] authStore.checkAuth called');
-        // Also log to localStorage for debug panel
-        const logs = JSON.parse(localStorage.getItem('debug_logs') || '[]');
-        logs.push({ time: new Date().toISOString(), message: 'checkAuth called', data: null });
-        localStorage.setItem('debug_logs', JSON.stringify(logs));
-
         const token = get().token;
         if (!token) {
-          console.log('[DEBUG] checkAuth - No token in store');
           return;
         }
 
         try {
-          console.log('[DEBUG] checkAuth - Calling getProfile API');
-          logs.push({ time: new Date().toISOString(), message: 'Calling getProfile API...', data: null });
-          localStorage.setItem('debug_logs', JSON.stringify(logs));
-
           const response = await authAPI.getProfile();
-          console.log('[DEBUG] checkAuth - Profile response:', response.data);
-
-          logs.push({ time: new Date().toISOString(), message: 'Profile SUCCESS', data: JSON.stringify(response.data) });
-          localStorage.setItem('debug_logs', JSON.stringify(logs));
-
           set({ user: response.data.data });
-          console.log('[DEBUG] checkAuth - User set successfully');
         } catch (error: unknown) {
-          const err = error as { response?: { status?: number; data?: { message?: string } }; message?: string };
-          console.log('[DEBUG] checkAuth - Error:', err);
-
-          const errorMsg = `Status: ${err.response?.status || 'N/A'}, Message: ${err.response?.data?.message || err.message || 'Unknown error'}`;
-          logs.push({ time: new Date().toISOString(), message: 'Profile FAILED - ' + errorMsg, data: null });
-          localStorage.setItem('debug_logs', JSON.stringify(logs));
-
           // Token invalid, clear auth
-          console.log('[DEBUG] checkAuth - Clearing token and user');
           localStorage.removeItem("token");
           set({ user: null, token: null });
         }

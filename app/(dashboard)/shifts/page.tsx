@@ -5,6 +5,7 @@ import { shiftsAPI } from "@/lib/api";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { Clock, Loader2, User } from "lucide-react";
 
 interface Shift {
@@ -31,11 +32,13 @@ function parseMoney(value: string | number | null | undefined): number {
 export default function ShiftsPage() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     const fetchShifts = async () => {
       try {
-        const res = await shiftsAPI.getAll({ limit: 50 });
+        const res = await shiftsAPI.getAll({ limit: 100 });
         setShifts(res.data.data);
       } catch (error) {
         console.error("Failed to fetch shifts:", error);
@@ -45,6 +48,13 @@ export default function ShiftsPage() {
     };
     fetchShifts();
   }, []);
+
+  const totalItems = shifts.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const paginatedShifts = shifts.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -60,12 +70,12 @@ export default function ShiftsPage() {
               <thead className="border-b border-border bg-secondary/50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium">Cashier</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Start</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">End</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium">Opening</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium">Closing</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium hidden sm:table-cell">Start</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium hidden md:table-cell">End</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium hidden lg:table-cell">Opening</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium hidden lg:table-cell">Closing</th>
                   <th className="px-4 py-3 text-right text-sm font-medium">Sales</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium">TRX</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium hidden sm:table-cell">TRX</th>
                   <th className="px-4 py-3 text-center text-sm font-medium">Status</th>
                 </tr>
               </thead>
@@ -83,7 +93,7 @@ export default function ShiftsPage() {
                     </td>
                   </tr>
                 ) : (
-                  shifts.map((shift) => (
+                  paginatedShifts.map((shift) => (
                     <tr key={shift.id} className="border-b border-border hover:bg-secondary/30">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -95,14 +105,14 @@ export default function ShiftsPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm">{formatDateTime(shift.start_time)}</td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-4 py-3 text-sm hidden sm:table-cell">{formatDateTime(shift.start_time)}</td>
+                      <td className="px-4 py-3 text-sm hidden md:table-cell">
                         {shift.end_time ? formatDateTime(shift.end_time) : "-"}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right hidden lg:table-cell">
                         {formatCurrency(parseMoney(shift.opening_cash))}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right hidden lg:table-cell">
                         {shift.closing_cash
                           ? formatCurrency(parseMoney(shift.closing_cash))
                           : "-"}
@@ -110,7 +120,7 @@ export default function ShiftsPage() {
                       <td className="px-4 py-3 text-right font-medium text-green-500">
                         {formatCurrency(parseMoney(shift.total_sales))}
                       </td>
-                      <td className="px-4 py-3 text-right">{shift.transaction_count}</td>
+                      <td className="px-4 py-3 text-right hidden sm:table-cell">{shift.transaction_count}</td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant={shift.status === "open" ? "success" : "secondary"}>
                           {shift.status}
@@ -122,6 +132,17 @@ export default function ShiftsPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={totalItems}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+          />
         </CardContent>
       </Card>
     </div>

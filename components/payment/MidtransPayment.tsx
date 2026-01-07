@@ -5,30 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Loader2, CreditCard, AlertCircle } from 'lucide-react';
 import { paymentsAPI } from '@/lib/api';
 
-declare global {
-    interface Window {
-        snap: {
-            pay: (
-                token: string,
-                options: {
-                    onSuccess?: (result: MidtransResult) => void;
-                    onPending?: (result: MidtransResult) => void;
-                    onError?: (result: MidtransResult) => void;
-                    onClose?: () => void;
-                }
-            ) => void;
-        };
-    }
-}
-
-interface MidtransResult {
-    order_id: string;
-    transaction_status: string;
-    payment_type: string;
-    gross_amount: string;
-    status_code: string;
-    status_message: string;
-}
+// Import Midtrans types from centralized location
+import type { MidtransResult } from '@/lib/midtrans.d';
 
 interface MidtransPaymentProps {
     transactionId: number;
@@ -118,28 +96,40 @@ export default function MidtransPayment({
                 throw new Error('Failed to get payment token');
             }
 
-            console.log('Opening Midtrans popup for order:', order_id);
+
 
             // Open Midtrans Snap popup
+            if (!window.snap) {
+                throw new Error('Midtrans not loaded');
+            }
             window.snap.pay(token, {
-                onSuccess: (result) => {
-                    console.log('Payment success:', result);
+                onSuccess: async (result) => {
+                    // Sync payment status from Midtrans API (webhook alternative for localhost)
+                    try {
+                        await paymentsAPI.syncPayment(transactionId);
+                    } catch (e) {
+                        console.error('Sync failed:', e);
+                    }
                     setLoading(false);
                     onSuccess?.(result);
                 },
-                onPending: (result) => {
-                    console.log('Payment pending:', result);
+                onPending: async (result) => {
+                    try {
+                        await paymentsAPI.syncPayment(transactionId);
+                    } catch (e) {
+                        console.error('Sync failed:', e);
+                    }
                     setLoading(false);
                     onPending?.(result);
                 },
                 onError: (result) => {
-                    console.log('Payment error:', result);
+
                     setLoading(false);
                     setError('Payment failed');
                     onError?.(result);
                 },
                 onClose: () => {
-                    console.log('Payment popup closed');
+
                     setLoading(false);
                     onClose?.();
                 }

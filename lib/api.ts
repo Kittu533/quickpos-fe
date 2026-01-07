@@ -19,7 +19,6 @@ api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("token");
-      console.log('[API] Request to:', config.url, '- Token:', token ? `${token.length} chars` : 'null');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -48,6 +47,20 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// Helper to get full image URL from relative path
+export const getImageUrl = (imagePath: string | undefined | null): string | null => {
+  if (!imagePath) return null;
+
+  // If already a full URL (http/https), return as is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+
+  // Prepend API URL to relative paths
+  const baseUrl = API_URL?.replace(/\/api\/?$/, '') || '';
+  return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+};
 
 // Auth API
 export const authAPI = {
@@ -155,7 +168,7 @@ export const paymentsAPI = {
     api.post("/payments/create", { transaction_id: transactionId }),
   checkStatus: (orderId: string) => api.get(`/payments/status/${orderId}`),
   cancelPayment: (orderId: string) => api.post(`/payments/cancel/${orderId}`),
+  syncPayment: (transactionId: number) => api.post(`/payments/sync/${transactionId}`),
   // For testing purposes
   simulateNotification: (data: any) => api.post("/payments/notification", data),
 };
-

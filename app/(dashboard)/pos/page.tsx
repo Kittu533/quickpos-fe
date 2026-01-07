@@ -38,28 +38,8 @@ import {
   QrCode,
 } from "lucide-react";
 
-// Midtrans types
-declare global {
-  interface Window {
-    snap: {
-      pay: (
-        token: string,
-        options: {
-          onSuccess?: (result: MidtransResult) => void;
-          onPending?: (result: MidtransResult) => void;
-          onError?: (result: MidtransResult) => void;
-          onClose?: () => void;
-        }
-      ) => void;
-    };
-  }
-}
-
-interface MidtransResult {
-  order_id: string;
-  transaction_status: string;
-  payment_type: string;
-}
+// Import Midtrans types from centralized location
+import type { MidtransResult } from "@/lib/midtrans.d";
 
 interface Product {
   id: number;
@@ -260,9 +240,11 @@ export default function POSPage() {
       setShowPaymentModal(false);
 
       // Open Midtrans Snap popup
+      if (!window.snap) {
+        throw new Error("Midtrans not loaded");
+      }
       window.snap.pay(token, {
         onSuccess: (result: MidtransResult) => {
-          console.log("Payment success:", result);
           setLastTransaction(txRes.data.data);
           setShowReceiptModal(true);
           clearCart();
@@ -272,17 +254,14 @@ export default function POSPage() {
           setMidtransLoading(false);
         },
         onPending: (result: MidtransResult) => {
-          console.log("Payment pending:", result);
           // Don't reset loading, let user use simulate button if needed
           // setMidtransLoading(false); 
         },
         onError: (result: MidtransResult) => {
-          console.log("Payment error:", result);
           alert("Pembayaran gagal. Silakan coba lagi.");
           setMidtransLoading(false);
         },
         onClose: () => {
-          console.log("Payment popup closed");
           setMidtransLoading(false);
         },
       });
@@ -352,8 +331,8 @@ export default function POSPage() {
         </div>
 
         {/* Products Grid */}
-        <div className="flex-1 overflow-auto">
-          <div className="grid grid-cols-3 gap-4">
+        <div className="flex-1 overflow-auto pr-2">
+          <div className="grid grid-cols-4 gap-3">
             {filteredProducts.map((product) => (
               <button
                 key={product.id}
@@ -368,48 +347,48 @@ export default function POSPage() {
                   })
                 }
                 disabled={product.stock === 0}
-                className="group relative flex flex-col items-start rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-all duration-300 hover:shadow-lg hover:border-blue-200 hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-sm overflow-hidden"
+                className="group relative rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-blue-300 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {/* Product Image/Icon Container */}
-                <div className="mb-3 h-20 w-full rounded-lg bg-blue-50 flex items-center justify-center relative overflow-hidden transition-all duration-300 hover:bg-blue-100">
+                {/* Image Container - Larger & More Prominent */}
+                <div className="aspect-square w-full bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
                   {product.image_url ? (
                     <img
                       src={product.image_url}
                       alt={product.name}
-                      className="h-full w-full object-cover rounded-lg"
+                      className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
-                    <Package className="h-10 w-10 text-blue-500 group-hover:scale-110 transition-transform duration-300" />
+                    <div className="h-full w-full flex items-center justify-center">
+                      <Package className="h-12 w-12 text-gray-300 group-hover:text-blue-400 transition-colors" />
+                    </div>
                   )}
-                  {/* Stock Badge Overlay */}
-                  <div className="absolute top-2 right-2">
-                    <Badge
-                      variant={product.stock > 10 ? "secondary" : product.stock > 0 ? "outline" : "destructive"}
-                      className={`text-xs font-semibold shadow-sm ${product.stock > 10
-                        ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                        : product.stock > 0
-                          ? "bg-amber-100 text-amber-700 border-amber-200"
-                          : ""
-                        }`}
-                    >
-                      {product.stock > 0 ? product.stock : "Out"}
-                    </Badge>
+                  {/* Stock Badge */}
+                  <div className="absolute top-2 left-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      product.stock === 0
+                        ? "bg-red-500 text-white"
+                        : product.stock <= 5
+                          ? "bg-amber-500 text-white"
+                          : "bg-emerald-500 text-white"
+                    }`}>
+                      {product.stock === 0 ? "Habis" : `${product.stock}`}
+                    </span>
+                  </div>
+                  {/* Quick Add Overlay */}
+                  <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/10 transition-colors flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-full bg-white/0 group-hover:bg-white shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-50 group-hover:scale-100">
+                      <Plus className="h-5 w-5 text-blue-600" />
+                    </div>
                   </div>
                 </div>
-                {/* Product Info */}
-                <div className="flex-1 w-full">
-                  <p className="text-sm font-semibold text-gray-800 line-clamp-2 group-hover:text-blue-700 transition-colors">
+                {/* Product Info - Compact */}
+                <div className="p-2.5">
+                  <p className="text-xs font-medium text-gray-700 line-clamp-2 leading-tight min-h-[2rem]">
                     {product.name}
                   </p>
-                  {product.category?.name && (
-                    <p className="text-xs text-gray-400 mt-1">{product.category.name}</p>
-                  )}
-                </div>
-                {/* Price */}
-                <div className="mt-3 w-full pt-3 border-t border-gray-100">
-                  <span className="text-base font-bold text-blue-600">
+                  <p className="text-sm font-bold text-blue-600 mt-1">
                     {formatCurrency(parseFloat(String(product.price)))}
-                  </span>
+                  </p>
                 </div>
               </button>
             ))}

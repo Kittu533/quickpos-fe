@@ -6,6 +6,7 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { Receipt, Search, Loader2 } from "lucide-react";
 
 interface Transaction {
@@ -22,6 +23,8 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -42,6 +45,18 @@ export default function TransactionsPage() {
       t.transaction_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.customer?.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const totalItems = filteredTransactions.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const paginatedTransactions = filteredTransactions.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
 
   const getPaymentBadge = (method: string) => {
     const colors: Record<string, "default" | "secondary" | "outline"> = {
@@ -67,7 +82,7 @@ export default function TransactionsPage() {
           placeholder="Search by code or customer..."
           className="pl-10"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={handleSearchChange}
         />
       </div>
 
@@ -79,11 +94,11 @@ export default function TransactionsPage() {
               <thead className="border-b border-border bg-secondary/50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium">Transaction</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Customer</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium hidden sm:table-cell">Customer</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">Payment</th>
                   <th className="px-4 py-3 text-right text-sm font-medium">Total</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium">Status</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium hidden md:table-cell">Status</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium hidden lg:table-cell">Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -100,7 +115,7 @@ export default function TransactionsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredTransactions.map((transaction) => (
+                  paginatedTransactions.map((transaction) => (
                     <tr key={transaction.id} className="border-b border-border hover:bg-secondary/30">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -110,7 +125,7 @@ export default function TransactionsPage() {
                           <span className="font-mono text-sm">{transaction.transaction_code}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-4 py-3 text-sm hidden sm:table-cell">
                         {transaction.customer ? (
                           <div>
                             <p>{transaction.customer.name}</p>
@@ -128,12 +143,12 @@ export default function TransactionsPage() {
                       <td className="px-4 py-3 text-right font-medium">
                         {formatCurrency(parseFloat(String(transaction.total)))}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center hidden md:table-cell">
                         <Badge variant={transaction.status === "completed" ? "success" : "destructive"}>
                           {transaction.status}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                      <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                         {formatDateTime(transaction.transaction_date)}
                       </td>
                     </tr>
@@ -142,6 +157,17 @@ export default function TransactionsPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={totalItems}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+          />
         </CardContent>
       </Card>
     </div>
