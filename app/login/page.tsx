@@ -165,7 +165,7 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Demo credentials */}
+            {/* Demo credentials
             <div className="mt-8 pt-6 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                 Demo Credentials
@@ -186,7 +186,7 @@ export default function LoginPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* Footer */}

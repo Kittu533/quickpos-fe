@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QuickPOS Frontend
+
+Aplikasi Point of Sale (POS) modern berbasis web yang dibangun dengan Next.js 16 dan React 19.
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router)
+- **UI Library:** React 19
+- **Styling:** Tailwind CSS 4
+- **State Management:** Zustand
+- **Form Handling:** React Hook Form + Zod
+- **UI Components:** Radix UI
+- **Charts:** ApexCharts
+- **HTTP Client:** Axios
+- **Icons:** Lucide React
+
+## Fitur
+
+- 🔐 Autentikasi & manajemen user
+- 🛒 Point of Sale (kasir)
+- 📦 Manajemen produk
+- 👥 Manajemen pelanggan
+- 💳 Integrasi pembayaran (Midtrans)
+- 📊 Dashboard & laporan
+- ⏰ Manajemen shift kasir
+- 📈 Riwayat transaksi
+
+## Struktur Project
+
+```
+├── app/                    # Next.js App Router
+│   ├── (dashboard)/        # Route group untuk halaman dashboard
+│   │   ├── customers/      # Manajemen pelanggan
+│   │   ├── dashboard/      # Halaman dashboard
+│   │   ├── pos/            # Point of Sale
+│   │   ├── products/       # Manajemen produk
+│   │   ├── reports/        # Laporan
+│   │   ├── shifts/         # Manajemen shift
+│   │   ├── transactions/   # Riwayat transaksi
+│   │   └── users/          # Manajemen user
+│   ├── login/              # Halaman login
+│   └── payment/            # Halaman pembayaran
+├── components/             # Komponen React
+│   ├── layout/             # Komponen layout (Sidebar, Header)
+│   ├── ui/                 # Komponen UI reusable
+│   ├── charts/             # Komponen chart
+│   └── payment/            # Komponen pembayaran
+├── lib/                    # Utility & API
+├── stores/                 # Zustand stores
+└── public/                 # Asset statis
+```
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- npm / yarn / pnpm / bun
+
+### Instalasi
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd quickpos-fe
+
+# Install dependencies
+npm install
+
+# Setup environment variables
+cp .env.example .env
+# Edit .env sesuai konfigurasi
+```
+
+### Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka [http://localhost:3000](http://localhost:3000) di browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## Environment Variables
 
-To learn more about Next.js, take a look at the following resources:
+Buat file `.env` dengan konfigurasi berikut:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```env
+NEXT_PUBLIC_API_URL=<backend-api-url>
+NEXT_PUBLIC_MIDTRANS_CLIENT_KEY=<midtrans-client-key>
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` - Jalankan development server
+- `npm run build` - Build untuk production
+- `npm run start` - Jalankan production server
+- `npm run lint` - Jalankan ESLint
